@@ -1,0 +1,80 @@
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: airtable-proxy-configmap
+#   namespace: airtable-proxy
+# data:
+#   AIRTABLE_KEY: ''
+#   PORT: "3000"
+# ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airtable-proxy
+  namespace: airtable-proxy
+spec:
+  selector:
+    matchLabels:
+      app: airtable-proxy
+  replicas: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1  
+  template:
+    metadata:
+      labels:
+        app: airtable-proxy
+    spec:
+      imagePullSecrets:
+        - name: registry
+      containers:
+        - name: app
+          image: airtable-proxy:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: airtable-proxy-configmap         
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airtable-proxy
+  namespace: airtable-proxy
+  labels:
+    app: airtable-proxy
+spec:
+  ports:
+    - port: 3000
+      protocol: TCP
+  selector:
+    app: airtable-proxy
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: airtable-proxy
+  namespace: airtable-proxy
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+#    certmanager.k8s.io/cluster-issuer: "cloudflare-cluster-issuer"
+#    certmanager.k8s.io/acme-challenge-type: "dns01"
+#    certmanager.k8s.io/acme-dns01-provider: "cf-dns"
+spec:
+  tls:
+    - secretName: airtable-proxy-tls
+      hosts:
+        - airtable.proxy
+  rules:
+    - host: airtable.proxy
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: airtable-proxy
+              servicePort: 3000

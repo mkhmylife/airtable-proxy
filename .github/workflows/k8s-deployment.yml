@@ -1,0 +1,40 @@
+# This is a basic workflow to help you get started with Actions
+
+name: K8S Deployment
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+
+env:
+  repository: airtable-proxy
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  deploy:
+    # The type of runner that the job will run on
+    runs-on: [linux]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      - name: Build and push to DO
+        uses: docker/build-push-action@v1.1.0
+        with:
+          username: ${{ secrets.DO_API_TOKEN }}
+          password: ${{ secrets.DO_API_TOKEN }}
+          registry: registry.digitalocean.com
+          repository: airtable-proxy
+          tags: ${{ github.sha }}
+
+      - name: Deploy
+        uses: danielr1996/kubectl-action@1.0.0
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG_DATA }}
+          args: set image -n airtable-proxy --record deployment/airtable-proxy app=${{ env.repository }}:${{ github.sha }}
+
